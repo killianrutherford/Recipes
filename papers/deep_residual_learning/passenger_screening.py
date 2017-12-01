@@ -26,7 +26,7 @@ import numpy as np
 import theano
 import theano.tensor as T
 import lasagne
-
+from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 
 
@@ -206,14 +206,15 @@ def read_img(infile):
 
 def load_temp(data, target):
 	xs = []
-	data_path = "/Users/killianrutherford1/Desktop/Courses/BIGDATA/project/data/aps/"
+	data_path = "/mnt/disks/gpu-disk/aps/"
 	for file in data:
 		filename = data_path + file + ".aps"
 		t = read_img(filename)
+		#t = t[:,:,[0,8,15]]
 		xs.append(t)
 
 	x = np.array(xs)
-	print(x.shape)
+	#print(x.shape)
 
 	x = x.transpose(0,3,1,2)
 
@@ -228,7 +229,7 @@ def load_temp(data, target):
 	X_train = np.concatenate((x,x_train_flip),axis=0)
 	Y_train = np.concatenate((target,y_train_flip),axis=0)
 
-	return lasagne.utils.floatX(X_train), Y_train.reshape(Y_train.shape[0],1).astype('int32')
+	return lasagne.utils.floatX(X_train), Y_train.reshape(Y_train.shape[0],1).astype('float32')
 
 
 def load_data(data_path, label_path):
@@ -292,7 +293,7 @@ def load_data(data_path, label_path):
 def load_data_1(label_path):
 
 	dflabel = group_labels_binary(label_path)
-
+	print("dflabelshape: ", dflabel.shape)
 	x = np.array(dflabel['Id'])
 	y = np.array(dflabel['Probability'])
 	print(x)
@@ -317,7 +318,7 @@ from lasagne.layers import GlobalPoolLayer
 from lasagne.layers import PadLayer
 from lasagne.layers import ExpressionLayer
 from lasagne.layers import NonlinearityLayer
-from lasagne.nonlinearities import softmax, rectify
+from lasagne.nonlinearities import softmax, rectify, sigmoid
 from lasagne.layers import batch_norm
 
 def build_cnn(input_var=None, n=5):
@@ -337,13 +338,13 @@ def build_cnn(input_var=None, n=5):
 		#print(l.output_shape[3])
 		#print("l_1.output_shape", l_l.output_shape)
 		#stride=first_stride
-		stack_left_1 = batch_norm(ConvLayer(l_l, num_filters=out_num_filters, filter_size=(5,5), stride=first_stride, nonlinearity=rectify, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))
-		stack_left_2 = batch_norm(ConvLayer(stack_left_1, num_filters=out_num_filters, filter_size=(5,5), stride=(1,1), nonlinearity=None, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))
+		stack_left_1 = batch_norm(ConvLayer(l_l, num_filters=out_num_filters, filter_size=(3,3), stride=first_stride, nonlinearity=rectify, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))
+		stack_left_2 = batch_norm(ConvLayer(stack_left_1, num_filters=out_num_filters, filter_size=(3,3), stride=(1,1), nonlinearity=None, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))
 		
 
-		stack_right_1 = batch_norm(ConvLayer(ElemwiseSumLayer([l, NegativeLayer(l_l)]), num_filters=out_num_filters, filter_size=(5,5), stride=first_stride, nonlinearity=rectify, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))
-		stack_right_2 = batch_norm(ConvLayer(stack_right_1, num_filters=out_num_filters, filter_size=(5,5), stride=(1,1), nonlinearity=None, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))
-		
+		#stack_right_1 = batch_norm(ConvLayer(ElemwiseSumLayer([l, NegativeLayer(l_l)]), num_filters=out_num_filters, filter_size=(2,2), stride=first_stride, nonlinearity=rectify, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))
+		#stack_right_2 = batch_norm(ConvLayer(stack_right_1, num_filters=out_num_filters, filter_size=(2,2), stride=(1,1), nonlinearity=None, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))
+		print("first stack: ", stack_left_2.output_shape)
 
 
 		# add shortcut connections
@@ -351,23 +352,32 @@ def build_cnn(input_var=None, n=5):
 			if projection:
 				# projection shortcut, as option B in paper
 				projection = batch_norm(ConvLayer(l, num_filters=out_num_filters, filter_size=(1,1), stride=(2,2), nonlinearity=None, pad='same', b=None, flip_filters=False))
-				block = NonlinearityLayer(ElemwiseSumLayer([stack_left_2, stack_right_2, projection]),nonlinearity=rectify)
+				print("projection shape: ", projection.output_shape)
+				##block = NonlinearityLayer(ElemwiseSumLayer([stack_left_2, stack_right_2, projection]),nonlinearity=rectify)
+				block = NonlinearityLayer(ElemwiseSumLayer([stack_left_2, projection]),nonlinearity=rectify)
 			else:
 				# identity shortcut, as option A in paper
 				#print(l.output_shape[2])
-				if(l.output_shape[2]%2 ==0):
+				if(l.output_shape[2]%2 ==0 and l.output_shape[3]%2 == 0):
 					identity = ExpressionLayer(l, lambda X: X[:, :, ::2, ::2], lambda s: (s[0], s[1], s[2]//2, s[3]//2))
+				elif(l.output_shape[2]%2 ==0 and l.output_shape[3]%2 == 1):
+					identity = ExpressionLayer(l, lambda X: X[:, :, ::2, ::2], lambda s: (s[0], s[1], s[2]//2, s[3]//2 + 1))
+				elif(l.output_shape[2]%2 ==1 and l.output_shape[3]%2 == 0):
+					identity = ExpressionLayer(l, lambda X: X[:, :, ::2, ::2], lambda s: (s[0], s[1], s[2]//2 + 1, s[3]//2))
 				else :
 					identity = ExpressionLayer(l, lambda X: X[:, :, ::2, ::2], lambda s: (s[0], s[1], s[2]//2 + 1, s[3]//2 + 1))
 				padding = PadLayer(identity, [(int)(out_num_filters/4),0,0], batch_ndim=1)
 				print('------------------')
 				print(stack_left_2.output_shape)
-				print(stack_right_2.output_shape)
+				#print(stack_right_2.output_shape)
 				print(identity.output_shape)
 				print(padding.output_shape)
-				block = NonlinearityLayer(ElemwiseSumLayer([stack_left_2, stack_right_2, padding]),nonlinearity=rectify)
+				#block = NonlinearityLayer(ElemwiseSumLayer([stack_left_2, stack_right_2, padding]),nonlinearity=rectify)
+				block = NonlinearityLayer(ElemwiseSumLayer([stack_left_2, padding]),nonlinearity=rectify)
 		else:
-			block = NonlinearityLayer(ElemwiseSumLayer([stack_left_2, stack_right_2, l]),nonlinearity=rectify)
+			#block = NonlinearityLayer(ElemwiseSumLayer([stack_left_2, stack_right_2, l]),nonlinearity=rectify)
+			print("l output shape: ", l.output_shape)
+			block = NonlinearityLayer(ElemwiseSumLayer([stack_left_2, l]),nonlinearity=rectify)
 		
 		return block
 
@@ -375,7 +385,7 @@ def build_cnn(input_var=None, n=5):
 	l_in = InputLayer(shape=(None, 16, 512, 660), input_var=input_var)
 
 	# first layer, output is 16 x 32 x 32
-	l = batch_norm(ConvLayer(l_in, num_filters=16, filter_size=(5,5), stride=(1,1), nonlinearity=rectify, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))
+	l = batch_norm(ConvLayer(l_in, num_filters=16, filter_size=(3,3), stride=(4,4), nonlinearity=rectify, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))
 	print(l.output_shape)
 	# first stack of residual blocks, output is 16 x 32 x 32
 	for _ in range(n):
@@ -391,9 +401,9 @@ def build_cnn(input_var=None, n=5):
 	for _ in range(n):
 		l = residual_block(l)
 	print(l.output_shape)
-	# second stack of residual blocks, output is 32 x 16 x 16
+	#second stack of residual blocks, output is 32 x 16 x 16
 	#l = residual_block(l, increase_dim=True)
-	#for _ in range(1,n):
+	#for _ in range(n):
 	#    l = residual_block(l)
 
 	"""
@@ -404,12 +414,12 @@ def build_cnn(input_var=None, n=5):
 	"""
 	# average pooling
 	l = GlobalPoolLayer(l)
-
+	print("before dense: ",l.output_shape)
 	# fully connected layer
 	network = DenseLayer(
-			l, num_units=10,
+			l, num_units=1,
 			W=lasagne.init.HeNormal(),
-			nonlinearity=None)
+			nonlinearity=sigmoid)
 
 	return network
 
@@ -442,7 +452,7 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False, augment=False
 
 # ############################## Main program ################################
 
-def main(n=3, num_epochs=100, model=None):
+def main(n=5, num_epochs=100, model=None):
 	print('testuz331')
 	# Check if cifar data exists
 	"""
@@ -453,8 +463,9 @@ def main(n=3, num_epochs=100, model=None):
 	# Load the dataset
 	print("Loading data...")
 	#data = load_data("/Users/killianrutherford1/Desktop/Courses/BIGDATA/project/data/aps/","/Users/killianrutherford1/Desktop/Courses/BIGDATA/project/stage1_labels.csv")
-	data = load_data_1("/Users/killianrutherford1/Desktop/Courses/BIGDATA/project/stage1_labels.csv")
-
+	#data = load_data_1("/Users/killianrutherford1/Desktop/Courses/BIGDATA/project/stage1_labels.csv")
+	data = load_data_1("/mnt/disks/gpu-disk/stage1_labels.csv")
+	
 
 	X_train = data['X_train']
 	Y_train = data['Y_train']
@@ -485,7 +496,7 @@ def main(n=3, num_epochs=100, model=None):
 		# Create update expressions for training
 		# Stochastic Gradient Descent (SGD) with momentum
 		params = lasagne.layers.get_all_params(network, trainable=True)
-		lr = 0.01
+		lr = 0.1
 		print(lr)
 		#lr=0.1
 		sh_lr = theano.shared(lasagne.utils.floatX(lr))
@@ -494,7 +505,7 @@ def main(n=3, num_epochs=100, model=None):
 		
 		# Compile a function performing a training step on a mini-batch (by giving
 		# the updates dictionary) and returning the corresponding training loss:
-		train_fn = theano.function([input_var, target_var], loss, updates=updates)
+		train_fn = theano.function([input_var, target_var], loss, updates=updates, allow_input_downcast=True)
 
 	# Create a loss expression for validation/testing
 	test_prediction = lasagne.layers.get_output(network, deterministic=True)
@@ -507,7 +518,7 @@ def main(n=3, num_epochs=100, model=None):
 
 	# Compile a second function computing the validation loss and accuracy:
 	#val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
-	val_fn = theano.function([input_var, target_var], test_loss)
+	val_fn = theano.function([input_var, target_var], test_loss, allow_input_downcast=True)
 
 	if model is None:
 		# launch the training loop
@@ -524,21 +535,23 @@ def main(n=3, num_epochs=100, model=None):
 			train_err = 0
 			train_batches = 0
 			start_time = time.time()
-			for batch in iterate_minibatches(X_train, Y_train, 16, shuffle=True, augment=False):
+			for batch in tqdm(iterate_minibatches(X_train, Y_train, 16, shuffle=True, augment=False)):
 				inputs, targets = batch
 				train_err += train_fn(inputs, targets)
 				train_batches += 1
+				break
 
 			# And a full pass over the validation data:
 			val_err = 0
 			val_acc = 0
 			val_batches = 0
-			for batch in iterate_minibatches(X_test, Y_test, 16, shuffle=False):
+			for batch in tqdm(iterate_minibatches(X_test, Y_test, 16, shuffle=False)):
 				inputs, targets = batch
 				err = val_fn(inputs, targets)
 				val_err += err
 				#val_acc += acc
 				val_batches += 1
+				break
 
 			# Then we print the results for this epoch:
 			print("Epoch {} of {} took {:.3f}s".format(
@@ -554,9 +567,8 @@ def main(n=3, num_epochs=100, model=None):
 				new_lr = sh_lr.get_value() * 0.1
 				print("New LR:"+str(new_lr))
 				sh_lr.set_value(lasagne.utils.floatX(new_lr))
-
+			np.savez('passenger_screening_' +str(time.time()) + '.npz', *lasagne.layers.get_all_param_values(network))
 		# dump the network weights to a file :
-		np.savez('cifar10_deep_residual_model.npz', *lasagne.layers.get_all_param_values(network))
 	else:
 		# load network weights from model file
 		with np.load(model) as f:
@@ -567,7 +579,7 @@ def main(n=3, num_epochs=100, model=None):
 	test_err = 0
 	test_acc = 0
 	test_batches = 0
-	for batch in iterate_minibatches(X_test, Y_test, 16, shuffle=False):
+	for batch in tqdm(iterate_minibatches(X_test, Y_test, 16, shuffle=False)):
 		inputs, targets = batch
 		err = val_fn(inputs, targets)
 		test_err += err

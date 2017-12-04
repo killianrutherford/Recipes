@@ -402,10 +402,10 @@ def build_cnn(input_var=None, n=5):
 		l = residual_block(l)
 	print(l.output_shape)
 	#second stack of residual blocks, output is 32 x 16 x 16
-	#l = residual_block(l, increase_dim=True)
-	#for _ in range(n):
-	#    l = residual_block(l)
-
+	l = residual_block(l, increase_dim=True)
+	for _ in range(n):
+	    l = residual_block(l)
+	print(l.output_shape)
 	"""
 	# third stack of residual blocks, output is 64 x 8 x 8
 	l = residual_block(l, increase_dim=True)
@@ -509,21 +509,21 @@ def main(n=5, num_epochs=100, model=None):
 
 	# Create a loss expression for validation/testing
 	test_prediction = lasagne.layers.get_output(network, deterministic=True)
-	test_loss = lasagne.objectives.binary_crossentropy(test_prediction,
-															target_var)
+	test_loss = lasagne.objectives.binary_crossentropy(test_prediction, target_var)
 
 	test_loss = test_loss.mean()
-	#test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
-	#                  dtype=theano.config.floatX)
+	test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
+	                  dtype=theano.config.floatX)
 
 	# Compile a second function computing the validation loss and accuracy:
 	#val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
-	val_fn = theano.function([input_var, target_var], test_loss, allow_input_downcast=True)
+	val_fn = theano.function([input_var, target_var], [test_loss, test_acc], allow_input_downcast=True)
 
 	if model is None:
 		# launch the training loop
 		print("Starting training...")
 		# We iterate over epochs:
+		t1 = time.time()
 		for epoch in range(num_epochs):
 			# shuffle training data
 			train_indices = np.arange(X_train.shape[0])
@@ -539,7 +539,6 @@ def main(n=5, num_epochs=100, model=None):
 				inputs, targets = batch
 				train_err += train_fn(inputs, targets)
 				train_batches += 1
-				break
 
 			# And a full pass over the validation data:
 			val_err = 0
@@ -547,11 +546,10 @@ def main(n=5, num_epochs=100, model=None):
 			val_batches = 0
 			for batch in tqdm(iterate_minibatches(X_test, Y_test, 16, shuffle=False)):
 				inputs, targets = batch
-				err = val_fn(inputs, targets)
+				err,acc = val_fn(inputs, targets)
 				val_err += err
-				#val_acc += acc
+				val_acc += acc
 				val_batches += 1
-				break
 
 			# Then we print the results for this epoch:
 			print("Epoch {} of {} took {:.3f}s".format(
@@ -560,14 +558,25 @@ def main(n=5, num_epochs=100, model=None):
 			print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
 			print("  validation accuracy:\t\t{:.2f} %".format(
 				val_acc / val_batches * 100))
-
+			
+			fp = open("results/weights_model_" + str(t1) + ".txt", "a+")
+				
+			fp.write("Epoch {} of {} took {:.3f}s\n".format(
+				epoch + 1, num_epochs, time.time() - start_time))
+			fp.write("  training loss:\t\t{:.6f}\n".format(train_err / train_batches))
+			fp.write("  validation loss:\t\t{:.6f}\n".format(val_err / val_batches))
+			fp.write("  validation accuracy:\t\t{:.2f} %\n".format(
+				val_acc / val_batches * 100))
+				
+			fp.close()
+	
 			# adjust learning rate as in paper
 			# 32k and 48k iterations should be roughly equivalent to 41 and 61 epochs
 			if (epoch+1) == 31 or (epoch+1) == 61:
 				new_lr = sh_lr.get_value() * 0.1
 				print("New LR:"+str(new_lr))
 				sh_lr.set_value(lasagne.utils.floatX(new_lr))
-			np.savez('passenger_screening_' +str(time.time()) + '.npz', *lasagne.layers.get_all_param_values(network))
+			np.savez('weights/passenger_screening_' +str(t1) + '.npz', *lasagne.layers.get_all_param_values(network))
 		# dump the network weights to a file :
 	else:
 		# load network weights from model file

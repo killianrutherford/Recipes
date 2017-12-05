@@ -396,16 +396,17 @@ def build_cnn(input_var=None, n=5):
 	for _ in range(n):
 		l = residual_block(l)
 	print(l.output_shape)
-
-	l = residual_block(l, increase_dim=True)
-	for _ in range(n):
-		l = residual_block(l)
-	print(l.output_shape)
+	
+	l = batch_norm(ConvLayer(l, num_filters = 32, filter_size=(3,3), stride=(2,2), nonlinearity=rectify, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))	
+	#l = residual_block(l, increase_dim=True)
+	#for _ in range(n):
+	#	l = residual_block(l)
+	#print(l.output_shape)
 	#second stack of residual blocks, output is 32 x 16 x 16
-	l = residual_block(l, increase_dim=True)
-	for _ in range(n):
-	    l = residual_block(l)
-	print(l.output_shape)
+	#l = residual_block(l, increase_dim=True)
+	#for _ in range(n):
+	#    l = residual_block(l)
+	#print(l.output_shape)
 	"""
 	# third stack of residual blocks, output is 64 x 8 x 8
 	l = residual_block(l, increase_dim=True)
@@ -496,7 +497,7 @@ def main(n=5, num_epochs=100, model=None):
 		# Create update expressions for training
 		# Stochastic Gradient Descent (SGD) with momentum
 		params = lasagne.layers.get_all_params(network, trainable=True)
-		lr = 0.1
+		lr = 0.03
 		print(lr)
 		#lr=0.1
 		sh_lr = theano.shared(lasagne.utils.floatX(lr))
@@ -512,12 +513,12 @@ def main(n=5, num_epochs=100, model=None):
 	test_loss = lasagne.objectives.binary_crossentropy(test_prediction, target_var)
 
 	test_loss = test_loss.mean()
-	test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
-	                  dtype=theano.config.floatX)
+	#test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
+	#                  dtype=theano.config.floatX)
 
 	# Compile a second function computing the validation loss and accuracy:
 	#val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
-	val_fn = theano.function([input_var, target_var], [test_loss, test_acc], allow_input_downcast=True)
+	val_fn = theano.function([input_var, target_var], test_loss, allow_input_downcast=True)
 
 	if model is None:
 		# launch the training loop
@@ -546,9 +547,9 @@ def main(n=5, num_epochs=100, model=None):
 			val_batches = 0
 			for batch in tqdm(iterate_minibatches(X_test, Y_test, 16, shuffle=False)):
 				inputs, targets = batch
-				err,acc = val_fn(inputs, targets)
+				err = val_fn(inputs, targets)
 				val_err += err
-				val_acc += acc
+				#val_acc += acc
 				val_batches += 1
 
 			# Then we print the results for this epoch:

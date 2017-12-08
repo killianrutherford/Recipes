@@ -390,22 +390,23 @@ def build_cnn(input_var=None, n=5):
 	# first stack of residual blocks, output is 16 x 32 x 32
 	for _ in range(n):
 		l = residual_block(l)
-		l = DropoutLayer(l, p = 0.7)
+		#l = DropoutLayer(l, p = 0.7)
 		#print(l.output_shape)
 		#print(l.output_shape)
 	l = residual_block(l, increase_dim=True)
-	l = DropoutLayer(l, p = 0.5)
+	#l = DropoutLayer(l, p = 0.5)
 	for _ in range(n):
 		l = residual_block(l)
-		l = DropoutLayer(l, p = 0.5)
+		#l = DropoutLayer(l, p = 0.5)
 	print(l.output_shape)
 	
-	l = batch_norm(ConvLayer(l, num_filters = 32, filter_size=(3,3), stride=(2,2), nonlinearity=rectify, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))	
-	#l = residual_block(l, increase_dim=True)
-	#for _ in range(n):
-	#	l = residual_block(l)
-	#print(l.output_shape)
+	#l = batch_norm(ConvLayer(l, num_filters = 32, filter_size=(3,3), stride=(2,2), nonlinearity=rectify, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))	
+	l = residual_block(l, increase_dim=True)
+	for _ in range(n):
+		l = residual_block(l)
+	print(l.output_shape)
 	#second stack of residual blocks, output is 32 x 16 x 16
+	l = batch_norm(ConvLayer(l, num_filters = 64, filter_size=(3,3), stride=(2,2), nonlinearity=rectify, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))	
 	#l = residual_block(l, increase_dim=True)
 	#for _ in range(n):
 	#    l = residual_block(l)
@@ -500,7 +501,7 @@ def main(n=5, num_epochs=100, model=None):
 		# Create update expressions for training
 		# Stochastic Gradient Descent (SGD) with momentum
 		params = lasagne.layers.get_all_params(network, trainable=True)
-		lr = 0.03
+		lr = 0.01
 		print(lr)
 		#lr=0.1
 		sh_lr = theano.shared(lasagne.utils.floatX(lr))
@@ -593,14 +594,14 @@ def main(n=5, num_epochs=100, model=None):
 	test_batches = 0
 	for batch in tqdm(iterate_minibatches(X_test, Y_test, 16, shuffle=False)):
 		inputs, targets = batch
-		err = val_fn(inputs, targets)
+		err,acc = val_fn(inputs, targets)
 		test_err += err
-		#test_acc += acc
+		test_acc += acc
 		test_batches += 1
 	print("Final results:")
 	print("  test loss:\t\t\t{:.6f}".format(test_err / test_batches))
-	#print("  test accuracy:\t\t{:.2f} %".format(
-	#    test_acc / test_batches * 100))
+	print("  test accuracy:\t\t{:.2f} %".format(
+	    test_acc / test_batches * 100))
 
 
 if __name__ == '__main__':

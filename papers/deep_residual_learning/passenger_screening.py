@@ -400,13 +400,13 @@ def build_cnn(input_var=None, n=5):
 		#l = DropoutLayer(l, p = 0.5)
 	print(l.output_shape)
 	
-	#l = batch_norm(ConvLayer(l, num_filters = 32, filter_size=(3,3), stride=(2,2), nonlinearity=rectify, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))	
-	l = residual_block(l, increase_dim=True)
-	for _ in range(n):
-		l = residual_block(l)
-	print(l.output_shape)
+	l = batch_norm(ConvLayer(l, num_filters = 32, filter_size=(3,3), stride=(2,2), nonlinearity=rectify, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))	
+	#l = residual_block(l, increase_dim=True)
+	#for _ in range(n):
+	#	l = residual_block(l)
+	#print(l.output_shape)
 	#second stack of residual blocks, output is 32 x 16 x 16
-	l = batch_norm(ConvLayer(l, num_filters = 64, filter_size=(3,3), stride=(2,2), nonlinearity=rectify, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))	
+	#l = batch_norm(ConvLayer(l, num_filters = 64, filter_size=(3,3), stride=(2,2), nonlinearity=rectify, pad='same', W=lasagne.init.HeNormal(gain='relu'), flip_filters=False))	
 	#l = residual_block(l, increase_dim=True)
 	#for _ in range(n):
 	#    l = residual_block(l)
@@ -501,7 +501,7 @@ def main(n=5, num_epochs=100, model=None):
 		# Create update expressions for training
 		# Stochastic Gradient Descent (SGD) with momentum
 		params = lasagne.layers.get_all_params(network, trainable=True)
-		lr = 0.01
+		lr = 0.03
 		print(lr)
 		#lr=0.1
 		sh_lr = theano.shared(lasagne.utils.floatX(lr))
@@ -576,6 +576,7 @@ def main(n=5, num_epochs=100, model=None):
 	
 			# adjust learning rate as in paper
 			# 32k and 48k iterations should be roughly equivalent to 41 and 61 epochs
+			#if (epoch+1) == 23 or (epoch+1) == 43 or (epoch+1) == 64 or (epoch+1) == 85:
 			if (epoch+1) == 31 or (epoch+1) == 61:
 				new_lr = sh_lr.get_value() * 0.1
 				print("New LR:"+str(new_lr))

@@ -1,0 +1,24 @@
+Epoch 1 of 100 took 424.017s
+  training loss:		1.575605
+  validation loss:		1.199065
+  validation accuracy:		1.05 %
+Epoch 2 of 100 took 414.141s
+  training loss:		0.403240
+  validation loss:		0.665682
+  validation accuracy:		13.87 %
+Epoch 3 of 100 took 443.354s
+  training loss:		0.344466
+  validation loss:		0.420227
+  validation accuracy:		16.26 %
+Epoch 4 of 100 took 471.630s
+  training loss:		0.334613
+  validation loss:		3.712780
+  validation accuracy:		0.39 %
+Epoch 5 of 100 took 504.529s
+  training loss:		0.331706
+  validation loss:		0.515219
+  validation accuracy:		1.13 %
+Epoch 6 of 100 took 480.754s
+  training loss:		0.330540
+  validation loss:		29.734083
+  validation accuracy:		0.00 %
